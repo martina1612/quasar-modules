@@ -29,15 +29,22 @@ int GpibController::initialize (int board, int pad, int sad, int timeout,
 	m_send_eoi = send_eoi;
 	m_eos = eos;
 	m_dev = ibdev(board, pad, sad, timeout, send_eoi, eos);
+	
+	std::string cmd("*IDN?\n");
+	GpibController::sendCmdRetval(cmd, m_idn);
 
-	if (m_dev>0) {
-		std::string cmd("*IDN?\n");
-		GpibController::sendCmdRetval(cmd, m_idn);
+	//if (m_dev>0) { 	//use *IDN? to check communication, as m_dev>0 in all cases
+	if (m_idn != "") {
+	//	std::string cmd("*IDN?\n");
+	//	GpibController::sendCmdRetval(cmd, m_idn);
 		LOG(Log::INF) << "Device " << m_idn << " initialized." ;
 	}
 	else {
 		LOG(Log::INF) << "Error: device initialization not valid." ;
+		m_dev = -1; //m_dev is assigned a value >0 even if no device is found. Settings it to -1 manually.
+	        m_idn = "EMPTY";
 	}
+	
 
     return m_dev;
 }
@@ -46,7 +53,7 @@ int GpibController::sendCmd(std::string cmd) {
 	int stat = -1;
 
 	if (m_dev <= 0) {
-		LOG(Log::INF) << "GPIB device not valid. Command not sent." ;
+	//	LOG(Log::INF) << "GPIB device not valid. Command not sent." ;
 		return stat;
 	}
 
@@ -61,7 +68,7 @@ int GpibController::read(std::string &retval) {
 	int stat = -1;
 
 	if (m_dev <= 0) {
-		LOG(Log::INF) << "GPIB device not valid. Command not sent." ;
+	//	LOG(Log::INF) << "GPIB device not valid. Command not sent." ;
 		return stat;
 	}
 
@@ -93,7 +100,7 @@ int GpibController::sendCmdRetval(std::string cmd, std::string &retval) {
 	std::lock_guard<std::mutex> lock (m_mutex);
 	int statWrite = GpibController::sendCmd(cmd);
 	int statRead = GpibController::read(retval);
-    stat = statWrite+statRead;
+	stat = statWrite+statRead;
 
 	return stat;
 }
@@ -122,10 +129,13 @@ int GpibController::sendCmdBoolretval(std::string cmd, bool &retval) {
 	int statWrite = GpibController::sendCmd(cmd);
 	std::string strRetval = "";
 	int statRead = GpibController::read(strRetval);
-
-	if 		(strRetval.at(0)=='1')	retval = 1;
-	else if	(strRetval.at(0)=='0')	retval = 0;
-	else	LOG(Log::INF) << "Cannot convert device answer into boolean." ;
+	
+	if (strRetval.length() > 0 )
+		{
+		if 	(strRetval.at(0)=='1')	retval = 1;
+		else if	(strRetval.at(0)=='0')	retval = 0;
+		}
+	else	LOG(Log::INF) << "Cannot convert device answer into boolean or no answer received." ;
 
     stat = statWrite+statRead;
 
